@@ -1,7 +1,9 @@
-﻿using System;
+﻿using SharedData;
+using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.Serialization.Formatters.Binary;
 
 namespace tcp_server
 {
@@ -15,41 +17,52 @@ namespace tcp_server
 
             TcpListener listener = new TcpListener(ipPoint); // bind
 
-            try
+            listener.Start(10);
+            while (true)
             {
-                listener.Start(10);
-
                 Console.WriteLine("Server started! Waiting for connection...");
                 TcpClient client = listener.AcceptTcpClient();
-
-                while (client.Connected)
+                try
                 {
 
-                    NetworkStream ns = client.GetStream();
+                    while (client.Connected)
+                    {
 
-                    StreamReader sr = new StreamReader(ns);
-                    string response = sr.ReadLine();
+                        NetworkStream ns = client.GetStream();
 
-                    Console.WriteLine($"{client.Client.RemoteEndPoint} - {response} at {DateTime.Now.ToShortTimeString()}");
+                        BinaryFormatter formatter = new BinaryFormatter();
+                        var request = (Request)formatter.Deserialize(ns);
 
-                    string message = "Message was send!";               
+                        Console.WriteLine($"Request data : {request.A} {request.B} from {client.Client.LocalEndPoint}");
+                        double res = 0;
 
-                    StreamWriter sw = new StreamWriter(ns);
-                    sw.WriteLine(message);
+                        switch (request.Operation)
+                        {
+                            case OperationType.Add: res = request.A + request.B; break;
+                            case OperationType.Sub: res = request.A - request.B; break;
+                            case OperationType.Mult: res = request.A * request.B; break;
+                            case OperationType.Div: res = request.A / request.B; break;
+                        }
 
-                    sw.Flush();
+                        string message = $"Result = {res}";
+                        StreamWriter sw = new StreamWriter(ns);//1 Kb buffer size
+                        sw.WriteLine(message);
+                        sw.Flush();
 
-                    // закриваємо потокі
-                    //sr.Close();
-                    //sw.Close();
-                    //ns.Close();
+                        // закриваємо потокі
+                        //sr.Close();
+                        //sw.Close();
+                        //ns.Close();
+                    }
+
+                    client.Close();
                 }
-                client.Close();
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
+
             listener.Stop();
         }
     }
